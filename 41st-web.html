@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>41st Elite Corps — Trooper Dashboard</title>
+<style>
+:root {
+  --bg:#0b110c;          /* near-black green */
+  --panel:#132315;       /* dark green */
+  --panel-2:#0f1b11;     /* deeper green */
+  --edge:#243827;        /* borders */
+  --txt:#eef0e7;         /* off-white */
+  --muted:#9aa398;       /* muted */
+  --accent:#1f8a3d;      /* bright green */
+  --accent-2:#2d5d2f;    /* mid green */
+  --grey:#1d1f23;        /* grey/black */
+  --ok:#35c759;          /* status green */
+  --danger:#ff6666;      /* status red */
+  --radius:16px;
+  --shadow:0 10px 30px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Noto Sans','Helvetica Neue',Arial}
+.container{max-width:1200px;margin:0 auto;padding:20px}
+
+/* Header stays fixed position in the flow (no jumping) */
+.header{position:relative;display:flex;align-items:center;justify-content:center;gap:16px;padding:20px;background:linear-gradient(180deg,rgba(47,94,44,.35),rgba(47,94,44,.05) 140px),var(--panel);border:1px solid var(--edge);border-radius:var(--radius);box-shadow:var(--shadow)}
+.header .title{margin:0;text-align:center}
+.header h1{margin:0;font-weight:900;letter-spacing:.6px}
+.header .sub{color:var(--muted);font-size:.95rem}
+
+.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.input{background:var(--panel-2);border:1px solid var(--edge);color:var(--txt);padding:10px 14px;border-radius:12px;outline:none;min-width:320px}
+button.primary{background:var(--accent);color:#08110a;border:none;padding:10px 16px;border-radius:12px;font-weight:800;cursor:pointer}
+button.ghost{background:transparent;color:#c8e5cb;border:1px solid var(--edge);padding:9px 13px;border-radius:12px;cursor:pointer}
+
+/* Tabs */
+.nav{display:flex;gap:8px;justify-content:center;margin:14px auto 0}
+.tab{background:var(--panel-2);border:1px solid var(--edge);color:var(--txt);padding:9px 14px;border-radius:12px;cursor:pointer;font-weight:700}
+.tab.active{background:var(--accent);color:#08110a;border-color:transparent}
+
+.card{background:var(--panel);border:1px solid var(--edge);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card .title{margin:0;padding:14px 16px;border-bottom:1px solid var(--edge);font-weight:800;letter-spacing:.4px}
+.card .body{padding:16px}
+
+.row{display:flex;gap:12px;align-items:center}
+.grid{display:grid;gap:16px}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.stat{background:var(--panel-2);border:1px solid var(--edge);border-radius:12px;padding:12px 16px}
+.stat .k{font-size:1.4rem;font-weight:800}
+.stat .l{font-size:.8rem;color:var(--muted)}
+
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:var(--grey);border:1px solid var(--edge);margin:2px 4px 2px 0;font-size:.83rem}
+.badge.green{background:#163b1c;border-color:#2a6a32}
+.status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px;background:var(--danger);box-shadow:0 0 10px rgba(255,85,85,.25)}
+.status-dot.ok{background:var(--ok);box-shadow:0 0 10px rgba(59,211,106,.25)}
+
+.section{display:none}
+.section.active{display:block}
+.footer{margin-top:18px;text-align:center;color:var(--muted);font-size:.85rem}
+.holo{position:relative}
+.holo::after{content:'';position:absolute;inset:-1px;border-radius:var(--radius);border:1px solid rgba(120,180,120,.22);pointer-events:none}
+.helper{color:var(--muted);font-size:.9rem}
+
+/* Roles table with own scroll container */
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{padding:10px;border-bottom:1px solid var(--edge);text-align:left}
+.table th{color:var(--muted);font-weight:700}
+.table-wrap{max-height:460px;overflow-y:auto;border:1px solid var(--edge);border-radius:12px}
+.table thead th{position:sticky;top:0;background:var(--panel)}
+
+@media (max-width:900px){.stat-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- HEADER stays on top; results will render BELOW in the Home section -->
+  <div class="header holo" id="home">
+    <div class="title">
+      <h1>41st Elite Corps — Trooper Dashboard</h1>
+      <div class="sub">Milsim Logistics Interface</div>
+      <div class="nav">
+        <button class="tab active" data-tab="home">Home</button>
+        <button class="tab" data-tab="roles">Roles</button>
+      </div>
+      <form id="search-form" class="controls" autocomplete="off">
+        <input id="search" class="input" placeholder="Search Trooper ID (e.g., 583621855986843659)" />
+        <button class="primary" type="submit">Search</button>
+        <button class="ghost" type="button" id="clear">Clear</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- HOME CONTENT (result card is here, BELOW the search) -->
+  <div id="home-section" class="grid section active" style="margin-top:18px;">
+    <!-- Result card (hidden until a search happens) -->
+    <div id="result" class="card holo" style="display:none" aria-live="polite">
+      <h3 class="title">Trooper Overview</h3>
+      <div class="body">
+        <div class="row" style="justify-content:space-between;">
+          <div>
+            <div class="helper">Trooper ID</div>
+            <div id="r-id" class="code" style="font-weight:800;font-size:1.15rem;">—</div>
+          </div>
+          <div>
+            <div class="helper">Registration</div>
+            <div id="r-reg">—</div>
+          </div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="stat-grid">
+          <div class="stat"><div class="k" id="r-net">—</div><div class="l">Net Credits</div></div>
+          <div class="stat"><div class="k" id="r-currmax">—</div><div class="l">Current / Max</div></div>
+          <div class="stat"><div class="k" id="r-removed">—</div><div class="l">Removed Credits</div></div>
+          <div class="stat"><div class="k" id="r-streak">—</div><div class="l">Daily Streak</div></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="helper" style="margin-bottom:6px">Last Daily Claim</div>
+        <div id="r-last" class="badge">—</div>
+        <div style="height:14px"></div>
+        <div class="helper" style="margin-bottom:6px">Purchases</div>
+        <div id="r-purchases"></div>
+      </div>
+    </div>
+
+    <div class="card holo">
+      <h3 class="title">How to use</h3>
+      <div class="body">
+        <ul style="margin:0 0 10px 18px; line-height:1.5">
+          <li>Enter the <strong>Trooper ID</strong> and press Enter. Only that trooper's profile is shown.</li>
+          <li>Current demo models six tables: <span class="badge">non_stacking_roles</span> <span class="badge">register_status</span> <span class="badge">role_credits</span> <span class="badge">user_credits</span> <span class="badge">user_daily</span> <span class="badge">user_purchases</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card holo">
+      <h3 class="title">System</h3>
+      <div class="body">
+        <div class="stat-grid">
+          <div class="stat"><div class="k" id="s-users">—</div><div class="l">Troopers in demo</div></div>
+          <div class="stat"><div class="k" id="s-registered">—</div><div class="l">Registered</div></div>
+          <div class="stat"><div class="k" id="s-with-p">—</div><div class="l">With Purchases</div></div>
+          <div class="stat"><div class="k" id="s-avg">—</div><div class="l">Avg Net Credits</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROLES CONTENT (scrollable list) -->
+  <div id="roles-section" class="section" style="margin-top:18px;">
+    <div class="card holo">
+      <h3 class="title">Roles — Credit Values</h3>
+      <div class="body">
+        <div class="row" style="justify-content:space-between;flex-wrap:wrap;margin-bottom:10px">
+          <div class="row" style="gap:8px">
+            <span>Sort:</span>
+            <select id="role-sort" class="input" style="min-width:180px;padding:6px 10px">
+              <option value="credit-desc">Credit (High → Low)</option>
+              <option value="credit-asc">Credit (Low → High)</option>
+              <option value="name-asc">Name (A→Z)</option>
+              <option value="name-desc">Name (Z→A)</option>
+              <option value="type">Type (Non‑stacking first)</option>
+            </select>
+            <span>Type:</span>
+            <select id="role-type" class="input" style="min-width:160px;padding:6px 10px">
+              <option value="all">All</option>
+              <option value="non">Non‑stacking</option>
+              <option value="stack">Role credits</option>
+            </select>
+          </div>
+          <input id="role-search" class="input" placeholder="Search role name" style="min-width:260px" />
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="roles-table">
+            <thead>
+              <tr><th>Role</th><th>Credit</th><th>Type</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Dark green / grey / black. Results render below the search. Roles list is scrollable.</div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// DEMO SNAPSHOT & ROLE LISTS (structure mirrors the six DB tables)
+// ---------------------------------------------------------------------------
+const DEMO = {
+  generated_at: Math.floor(Date.now()/1000),
+  data: [
+    {
+      user_id: "583621855986843659",
+      registered: true,
+      credits: { current_credits: 113123, max_credits: 132923, removed_credits: 0 },
+      daily: { last_claim: 1754385305, streak: 1 },
+      purchases: ["Halfbody","Helmet Tubes","Custom Visor"],
+      net_credits: 113123
+    },
+    {
+      user_id: "829102566624985168",
+      registered: false,
+      credits: { current_credits: 12000, max_credits: 20000, removed_credits: 0 },
+      daily: { last_claim: null, streak: 0 },
+      purchases: ["Hood"],
+      net_credits: 12000
+    }
+  ],
+  roles: {
+    non_stacking_roles: [
+      { role_name: "ARC Captain", credit_amount: 15000 },
+      { role_name: "Clone Pilot", credit_amount: 1000 },
+      { role_name: "Flight Officer", credit_amount: 1500 },
+      { role_name: "Lance Corporal", credit_amount: 1500 },
+      { role_name: "Clone Trooper", credit_amount: 1000 }
+    ],
+    role_credits: [
+      { role_name: "ARC Qualification", credit_amount: 20000 },
+      { role_name: "Sergeant", credit_amount: 3000 },
+      { role_name: "Corporal", credit_amount: 1500 },
+      { role_name: "Private", credit_amount: 500 }
+    ]
+  }
+};
+
+let SNAPSHOT = DEMO;
+
+// ---------------------------------------------------------------------------
+// HOME (SEARCH)
+// ---------------------------------------------------------------------------
+const fmt = new Intl.NumberFormat();
+const resultEl = document.getElementById('result');
+const searchInput = document.getElementById('search');
+const form = document.getElementById('search-form');
+const clearBtn = document.getElementById('clear');
+
+function tsToString(ts){ if(!ts) return '—'; try{ return new Date(ts*1000).toLocaleString(); }catch(e){ return '—'; }}
+
+function updateSystemStats(){
+  const d = SNAPSHOT.data||[];
+  const users = d.length;
+  const registered = d.filter(x=>x.registered).length;
+  const withP = d.filter(x=>(x.purchases||[]).length).length;
+  const avg = users? (d.reduce((a,x)=>a+(x.net_credits??((x.credits?.current_credits||0)-(x.credits?.removed_credits||0))),0)/users):0;
+  document.getElementById('s-users').textContent = fmt.format(users);
+  document.getElementById('s-registered').textContent = fmt.format(registered);
+  document.getElementById('s-with-p').textContent = fmt.format(withP);
+  document.getElementById('s-avg').textContent = (Math.round(avg*100)/100).toFixed(2);
+}
+
+function renderTrooper(r){
+  resultEl.style.display = 'block';
+  document.getElementById('r-id').textContent = r.user_id;
+  document.getElementById('r-reg').innerHTML = r.registered? '<span class="status-dot ok"></span>Registered' : '<span class="status-dot"></span>Unregistered';
+  const net = r.net_credits ?? ((r.credits?.current_credits||0) - (r.credits?.removed_credits||0));
+  document.getElementById('r-net').textContent = fmt.format(net);
+  document.getElementById('r-currmax').textContent = `${fmt.format(r.credits?.current_credits||0)} / ${fmt.format(r.credits?.max_credits||0)}`;
+  document.getElementById('r-removed').textContent = fmt.format(r.credits?.removed_credits||0);
+  document.getElementById('r-streak').textContent = r.daily?.streak ?? 0;
+  document.getElementById('r-last').textContent = tsToString(r.daily?.last_claim);
+
+  const purchasesEl = document.getElementById('r-purchases');
+  purchasesEl.innerHTML = (r.purchases||[]).length ? '' : '<span class="badge">None</span>';
+  (r.purchases||[]).forEach(p=>{ const span=document.createElement('span'); span.className='badge'; span.textContent=p; purchasesEl.appendChild(span); });
+}
+
+function lookupById(idStr){
+  const id = (idStr||'').trim(); if(!id) return;
+  const hit = (SNAPSHOT.data||[]).find(x=>String(x.user_id)===id);
+  if(!hit){ resultEl.style.display='block'; resultEl.querySelector('.body').innerHTML = `<div class="helper">No record found for <strong>${id}</strong>.</div>`; return; }
+  renderTrooper(hit);
+}
+
+form.addEventListener('submit', (e)=>{e.preventDefault(); lookupById(searchInput.value);});
+clearBtn.addEventListener('click', ()=>{searchInput.value=''; resultEl.style.display='none'; searchInput.focus();});
+
+// ---------------------------------------------------------------------------
+// ROLES PAGE (sortable, filterable, scrollable)
+// ---------------------------------------------------------------------------
+const rolesTableBody = document.querySelector('#roles-table tbody');
+const roleSortSel = document.getElementById('role-sort');
+const roleTypeSel = document.getElementById('role-type');
+const roleSearch = document.getElementById('role-search');
+
+function buildRoleList(){
+  const src = SNAPSHOT.roles || {non_stacking_roles:[], role_credits:[]};
+  const non = (src.non_stacking_roles||[]).map(r=>({name:r.role_name, credit:r.credit_amount, type:'Non‑stacking'}));
+  const stk = (src.role_credits||[]).map(r=>({name:r.role_name, credit:r.credit_amount, type:'Role credits'}));
+  return [...non, ...stk];
+}
+
+function sortRoles(list, how){
+  const L = [...list];
+  switch(how){
+    case 'credit-asc': L.sort((a,b)=>a.credit-b.credit); break;
+    case 'name-asc': L.sort((a,b)=>a.name.localeCompare(b.name)); break;
+    case 'name-desc': L.sort((a,b)=>b.name.localeCompare(a.name)); break;
+    case 'type': L.sort((a,b)=> (a.type===b.type? a.name.localeCompare(b.name) : (a.type==='Non‑stacking'?-1:1))); break;
+    case 'credit-desc': default: L.sort((a,b)=>b.credit-a.credit); break;
+  }
+  return L;
+}
+
+function renderRoles(){
+  const q = roleSearch.value.trim().toLowerCase();
+  const t = roleTypeSel.value; // all | non | stack
+  let list = buildRoleList();
+  if(t==='non') list = list.filter(x=>x.type==='Non‑stacking');
+  if(t==='stack') list = list.filter(x=>x.type==='Role credits');
+  if(q) list = list.filter(x=>x.name.toLowerCase().includes(q));
+  list = sortRoles(list, roleSortSel.value);
+  rolesTableBody.innerHTML = '';
+  for(const r of list){
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${r.name}</td><td><strong>${fmt.format(r.credit)}</strong></td><td>${r.type}</td>`;
+    rolesTableBody.appendChild(tr);
+  }
+}
+roleSortSel.addEventListener('change', renderRoles);
+roleTypeSel.addEventListener('change', renderRoles);
+roleSearch.addEventListener('input', renderRoles);
+
+// ---------------------------------------------------------------------------
+// TABS
+// ---------------------------------------------------------------------------
+const tabs = document.querySelectorAll('.tab');
+const homeSection = document.getElementById('home-section');
+const rolesSection = document.getElementById('roles-section');
+function setTab(name){
+  tabs.forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  homeSection.classList.toggle('active', name==='home');
+  rolesSection.classList.toggle('active', name==='roles');
+  if(name==='roles') renderRoles();
+}
+[...tabs].forEach(t=>t.addEventListener('click', ()=>setTab(t.dataset.tab)));
+
+// Init
+updateSystemStats();
+setTab('home');
+</script>
+</body>
+</html>
